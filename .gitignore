@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data files (keep these local)
+*.csv
+*.xlsx
+*.parquet
+*.pkl
+
+# OS
+.DS_Store
+Thumbs.db

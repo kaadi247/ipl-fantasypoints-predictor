@@ -2,22 +2,40 @@
 __pycache__/
 *.py[cod]
 *.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
 .env
+.env.*
 
-# Virtual environment
+# Virtual environments
 venv/
 env/
 .venv/
+.ENV/
 
 # Jupyter
 .ipynb_checkpoints/
+*.ipynb_checkpoints
 
-# Data files (keep these local)
+# Data files (keep local, not committed)
 *.csv
 *.xlsx
 *.parquet
 *.pkl
 
-# OS
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
 Thumbs.db
+ehthumbs.db
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo

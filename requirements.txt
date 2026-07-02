@@ -1,0 +1,14 @@
+# Runtime environment: Python 3.12.4
+# Notebooks: 01_eda.ipynb, 02_features.ipynb, 03_model.ipynb
+
+pandas==2.3.0
+numpy==1.26.4
+matplotlib==3.10.3
+seaborn==0.13.2
+scikit-learn==1.5.1
+xgboost==3.2.0
+lightgbm==4.6.0
+
+# Jupyter
+jupyterlab==4.4.3
+notebook==7.4.3

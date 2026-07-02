@@ -1,64 +1,122 @@
-# IPL Fantasy Points Predictor 🏏
+# IPL Fantasy Points Predictor
 
-A machine learning project built to predict the highly volatile and chaotic performance of T20 cricket players in the Indian Premier League (IPL). This predictor acts as a robust backend engine capable of projecting player Daily Fantasy Sports (DFS) points by completely ignoring noise and isolating true opportunity and historical skill sets.
+A machine learning project that predicts per-match Dream11 fantasy points for IPL players, trained on ball-by-ball delivery data from 17 seasons (2007–2024).
 
-## 🚀 The Headline
-We successfully beat the dumb baseline (predicting the average) by over **2+ points of Mean Absolute Error (MAE)**.
+## Results
 
-- **Baseline Error:** `21.27 MAE`
-- **Champion Model Error (LightGBM L1):** `19.25 MAE`
-
-We accomplished this strict reduction in error by strictly avoiding data leakage (temporally splitting the train/test sets to literally predict the future 2023-2024 seasons).
-
----
-
-## 🛠️ Data Pipeline & Feature Engineering
-T20 Cricket relies heavily on unquantifiable luck (out-of-nowhere runouts, dropped catches, extreme pitch deterioration). To build a predictive model, we had to isolate **mathematical opportunity** and **statistical ceilings**.
-
-### The Breakthrough Features
-Standard cricket ML models rely exclusively on basic strike rates and batting averages. We pushed the boundary by calculating deeply contextual "Opportunity" metrics:
-1. **The Bowler Opportunity `avg_overs_bowled`:** An expanding mean of the exact number of overs a bowler secures per match. This separates frontline bowlers from part-timers instantly.
-2. **The Batter Endurance `avg_balls_faced`:** The batter's exact equivalent. Measuring how long a player usually survives at the crease defines their raw opportunity to acquire boundary bonuses and milestone runs.
-3. **The Form Oscillators:** `innings_avg` (form specifically batting 1st vs chasing), `home_away_avg`, and `vs_opponent_avg`. 
+| Model | MAE |
+|---|---|
+| Baseline (per-player historical mean) | 21.27 |
+| LightGBM — L1 objective, tuned | **19.25** |
 
 ---
 
-## 🧠 Model Architecture & The 18.x Expedition
-Our initial attempts utilizing basic **Linear Regression** and typical **Mean Squared Error (MSE)** algorithms mathematically faltered around the 20.4 MAE benchmark. Because MSE violently penalizes outliers (which define T20 cricket "monster" performances), the models defaulted to constantly predicting ~30 points.
+## Dataset
 
-### The Turnaround (L1 Optimization)
-To force the model to capture the true median geometry of cricket points, we executed "The 18.x Expedition":
-- **Objective Swap:** We switched our gradient boosting regressors to natively optimize for exactly what we evaluate by: **Absolute Error (L1 Loss)**.
-- **Algorithm Switch:** We bypassed feature encoding by feeding raw categoricals (`venue`, `opponent`) strictly into **LightGBM**.
-- **Deep Hyperparameter Tuning:** We executed a massive `RandomizedSearchCV` on an L1 objective to intentionally map out tree structures prioritizing steady point clusters over volatile outliers.
-
-> **The Champion** 🏆
-> **LightGBM (L1 Categorical Optimization)** claimed the crown at an astonishing **19.25 MAE**, representing the definitive noise floor of the dataset.
+- **Source:** Cricsheet ball-by-ball IPL delivery data (`deliveries.csv`, `matches.csv`)
+- **Coverage:** 17 seasons, 2007–2024
+- **Target variable:** Dream11 fantasy points per player per match, computed from raw deliveries
+- **Train / holdout split:** 2007–2022 (train), 2023–2024 (holdout). The split is strictly temporal so that all validation metrics reflect genuine out-of-sample forecasts with no leakage.
 
 ---
 
-## 📊 Analytics & Visualizations
+## Dream11 Scoring Logic
 
-### 1. Feature Importance
-When allowing LightGBM to organically build its trees, it immediately rejected traditional batting metrics in favor of our custom contextual opportunity mapping.
+Fantasy points are calculated from the raw delivery data in `01_eda.ipynb` and validated against historical Dream11 records. The scoring rules implemented are:
+
+**Batting**
+- 0.5 pts per run
+- 1 pt per four, 2 pts per six
+- Milestone bonuses: +4 at 25 runs, +8 at 50, +8 at 75, +8 at 100
+- −2 pts for a duck (dismissed for 0)
+
+**Bowling**
+- 25 pts per wicket
+- 8 pts per LBW or bowled dismissal
+- Bonus tiers: +4 for 3-wicket haul, +8 additional for 4-wicket haul
+- 12 pts per maiden over
+
+**Fielding**
+- 8 pts per catch; 12 pts per stumping; 6 pts per run-out
+
+Computed points are stored in `data/fantasy_points.csv` and used as the prediction target throughout the modelling pipeline.
+
+---
+
+## Methodology
+
+### Feature Engineering (`02_features.ipynb`)
+
+All features are computed as expanding-window or lag statistics so that only data preceding each match is used at prediction time. Key features:
+
+- `career_avg` — expanding mean of fantasy points across all prior appearances
+- `last_season_avg` — previous full-season average, joined on `season − 1`
+- `rolling_5_avg` — rolling 5-match average (shifted by 1)
+- `home_away_avg` — expanding mean split by home/away
+- `venue_avg` — expanding mean at the specific venue
+- `avg_overs_bowled` — expanding mean of overs bowled per match (proxy for bowling role)
+- `avg_balls_faced` — expanding mean of balls faced per match (proxy for batting role)
+- `innings_avg` — expanding mean split by innings (batting first vs. chasing)
+- `vs_opponent_avg` — expanding mean against the specific opposition
+
+### Model Selection and Objective (`03_model.ipynb`)
+
+The evaluation metric is MAE (Mean Absolute Error). Using an MSE objective caused tree-based models to bias predictions toward the mean and fail to capture the wide variance in T20 performances. Switching to an **L1 (absolute error) objective** aligns the loss function directly with the evaluation metric and improved holdout MAE.
+
+Models benchmarked:
+- Linear Regression (MSE objective) — baseline comparisons
+- XGBoost — `objective='reg:absoluteerror'`
+- **LightGBM — `objective='regression_l1'`** ← best result
+
+Hyperparameters were tuned via `RandomizedSearchCV` on the training fold only. Native categorical support in LightGBM was used for `venue` and `opponent`, avoiding ordinal encoding.
+
+---
+
+## Diagrams
+
+### Feature Importance
 ![Feature Importance](diagrams/feature_importance.png)
 
-### 2. Predicted vs Actual Point Mapping
-Because cricket is volatile, predicting an exact 150-point game is effectively impossible without leaking the future. The model securely maps realistic ceilings.
-![Scatter Mapping](diagrams/predicted_vs_actual.png)
+### Predicted vs. Actual
+![Predicted vs Actual](diagrams/predicted_vs_actual.png)
 
-### 3. Residual Error (Distribution)
-Our absolute goal was to produce a truly sound statistical bell-curve of errors proving our algorithm is genuinely unbiased. As seen in the histogram, our errors fall evenly on both sides of $0$.
+### Residual Distribution
 ![Residual Distribution](diagrams/residuals_distribution.png)
 
 ---
 
-## 💻 Tech Stack
-- **Python**: Core scripting language natively traversing over ~20,000 matches worth of delivery-level micro-data.
-- **Pandas & NumPy**: For brutally robust, non-leaking recursive expanding Window feature scaling.
-- **LightGBM & XGBoost**: World-class gradient boosting trees allowing native L1 norm evaluations.
-- **Scikit-Learn**: Validation architecture (RandomizedSearchCV / Metrics calculation).
-- **Seaborn & Matplotlib**: Exploratory data analysis rendering.
+## Repository Structure
+
+```
+.
+├── 01_eda.ipynb              # Data audit, Dream11 scoring computation, EDA
+├── 02_features.ipynb         # Leakage-free feature engineering
+├── 03_model.ipynb            # Model training, tuning, evaluation
+├── data/
+│   ├── deliveries.csv        # Raw ball-by-ball data (gitignored)
+│   ├── matches.csv           # Match metadata (gitignored)
+│   ├── fantasy_points.csv    # Computed targets (gitignored)
+│   ├── featured_dataset.csv  # Final feature matrix (gitignored)
+│   └── champion_model.pkl    # Serialised LightGBM model (gitignored)
+├── diagrams/                 # Output plots
+├── requirements.txt
+└── README.md
+```
 
 ---
-*Built through rigorous mathematical sparring during a pair-programming saga to push past the limits of noisy sports betting models.*
+
+## Setup
+
+```bash
+pip install -r requirements.txt
+jupyter lab
+```
+
+Run notebooks in order: `01_eda` → `02_features` → `03_model`.
+
+---
+
+## Resume Description
+
+This project builds a machine learning pipeline to predict IPL player fantasy points from 17 seasons of ball-by-ball delivery data (2007–2024). A custom Dream11 scoring engine aggregates raw delivery records into per-match point totals, which serve as the prediction target. Features are constructed using expanding-window and lag statistics to prevent data leakage, and the dataset is split temporally (2007–2022 train, 2023–2024 holdout) to simulate real forecasting conditions. Switching the gradient boosting objective from MSE to L1 loss — to match the MAE evaluation metric — reduced holdout error from a baseline of 21.27 MAE to 19.25 MAE using a tuned LightGBM model with native categorical support.
+
